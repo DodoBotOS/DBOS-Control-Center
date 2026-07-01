@@ -100,7 +100,78 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    context.subscriptions.push(connectCmd, openWorkspaceCmd, startBotCmd, stopBotCmd, restartBotCmd, viewLogsCmd, rebootCmd);
+    let openTerminalCmd = vscode.commands.registerCommand('dbos.openTerminal', () => {
+        if (!connectionConfig.host) {
+            vscode.window.showErrorMessage('Please connect to DBOS first.');
+            return;
+        }
+        const term = vscode.window.createTerminal('DBOS SSH');
+        term.show();
+        term.sendText(`ssh root@${connectionConfig.host}`);
+    });
+
+    let downloadBackupCmd = vscode.commands.registerCommand('dbos.downloadBackup', async () => {
+        if (!sshClient) {
+            vscode.window.showErrorMessage('Please connect to DBOS first.');
+            return;
+        }
+
+        const option = await vscode.window.showQuickPick([
+            'Download backup with node_modules',
+            'Download backup without node_modules'
+        ], { placeHolder: 'Select backup type' });
+
+        if (!option) return;
+
+        const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file('dbos_backup.tar.gz'),
+            filters: { 'Archives': ['tar.gz'] }
+        });
+
+        if (!uri) return;
+
+        const exclude = option === 'Download backup without node_modules' ? "--exclude='./node_modules' " : "";
+        const tarCmd = `tar -czf /tmp/dbos_backup.tar.gz ${exclude}-C /root .`;
+
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Creating and downloading backup...",
+            cancellable: false
+        }, async (progress) => {
+            return new Promise<void>((resolve, reject) => {
+                sshClient!.exec(tarCmd, (err, stream) => {
+                    if (err) {
+                        vscode.window.showErrorMessage('Backup failed: ' + err.message);
+                        return reject(err);
+                    }
+                    stream.on('close', (code: any) => {
+                        if (code !== 0) {
+                            vscode.window.showErrorMessage('Failed to create backup on device.');
+                            return reject(new Error('tar failed'));
+                        }
+                        
+                        sshClient!.sftp((err, sftp) => {
+                            if (err) {
+                                vscode.window.showErrorMessage('SFTP failed: ' + err.message);
+                                return reject(err);
+                            }
+                            sftp.fastGet('/tmp/dbos_backup.tar.gz', uri.fsPath, (err) => {
+                                if (err) {
+                                    vscode.window.showErrorMessage('Download failed: ' + err.message);
+                                    return reject(err);
+                                }
+                                vscode.window.showInformationMessage('Backup downloaded to ' + uri.fsPath);
+                                sshClient!.exec('rm /tmp/dbos_backup.tar.gz', () => {});
+                                resolve();
+                            });
+                        });
+                    }).stderr.on('data', (data: any) => console.error(data.toString()));
+                });
+            });
+        });
+    });
+
+    context.subscriptions.push(connectCmd, openWorkspaceCmd, startBotCmd, stopBotCmd, restartBotCmd, viewLogsCmd, rebootCmd, openTerminalCmd, downloadBackupCmd);
 }
 
 async function connectToDbos(context: vscode.ExtensionContext, silent: boolean): Promise<void> {

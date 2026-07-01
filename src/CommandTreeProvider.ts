@@ -17,7 +17,9 @@ export class DbosCommandTreeProvider implements vscode.TreeDataProvider<DbosComm
                 new DbosCommandItem('Stop Dodo Bot', 'dbos.stopBot', new vscode.ThemeIcon('stop')),
                 new DbosCommandItem('Restart Dodo Bot', 'dbos.restartBot', new vscode.ThemeIcon('refresh')),
                 new DbosCommandItem('View Logs', 'dbos.viewLogs', new vscode.ThemeIcon('output')),
-                new DbosCommandItem('Reboot Hardware', 'dbos.reboot', new vscode.ThemeIcon('power'))
+                new DbosCommandItem('Reboot Hardware', 'dbos.reboot', new vscode.ThemeIcon('power')),
+                new DbosCommandItem('Open Terminal', 'dbos.openTerminal', new vscode.ThemeIcon('terminal')),
+                new DbosCommandItem('Download Backup', 'dbos.downloadBackup', new vscode.ThemeIcon('cloud-download'))
             ]);
         }
     }
